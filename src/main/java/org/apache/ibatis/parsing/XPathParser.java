@@ -138,6 +138,12 @@ public class XPathParser {
     return evalString(document, expression);
   }
 
+  /**
+   * 这个方法会调用{@code PropertyParser.parse}方法来处理节点中相应的默认具体实现
+   * @param root
+   * @param expression
+   * @return
+   */
   public String evalString(Object root, String expression) {
     String result = (String) evaluate(expression, root, XPathConstants.STRING);
     result = PropertyParser.parse(result, variables);
@@ -217,6 +223,14 @@ public class XPathParser {
     return new XNode(this, node, variables);
   }
 
+  /**
+   * 查找指定货路径的节点或属性
+   *
+   * @param expression
+   * @param root
+   * @param returnType
+   * @return
+   */
   private Object evaluate(String expression, Object root, QName returnType) {
     try {
       return xpath.evaluate(expression, root, returnType);
@@ -225,8 +239,15 @@ public class XPathParser {
     }
   }
 
+  /**
+   * 封装了前面的创建Document对象的过程, 并触发了加载XML文档的过程
+   *
+   * @param inputSource {@link org.apache.ibatis.builder.xml.XMLMapperEntityResolver} xml文件源
+   * @return
+   */
   private Document createDocument(InputSource inputSource) {
     // important: this must only be called AFTER common constructor
+    // 调用createDocument方法之前一定要先调用commonConstructor
     try {
       DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
       factory.setValidating(validation);
@@ -238,6 +259,7 @@ public class XPathParser {
       factory.setExpandEntityReferences(true);
 
       DocumentBuilder builder = factory.newDocumentBuilder();
+      // 设置EntityResolver接口对象
       builder.setEntityResolver(entityResolver);
       builder.setErrorHandler(new ErrorHandler() {
         @Override
@@ -254,6 +276,7 @@ public class XPathParser {
         public void warning(SAXParseException exception) throws SAXException {
         }
       });
+      // 加载XML文件
       return builder.parse(inputSource);
     } catch (Exception e) {
       throw new BuilderException("Error creating document instance.  Cause: " + e, e);

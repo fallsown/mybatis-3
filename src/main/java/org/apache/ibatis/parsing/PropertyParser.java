@@ -43,7 +43,9 @@ public class PropertyParser {
    */
   public static final String KEY_DEFAULT_VALUE_SEPARATOR = KEY_PREFIX + "default-value-separator";
 
+  // 默认情况下关闭默认值功能
   private static final String ENABLE_DEFAULT_VALUE = "false";
+  // 默认分隔使用冒号
   private static final String DEFAULT_VALUE_SEPARATOR = ":";
 
   private PropertyParser() {
@@ -52,13 +54,20 @@ public class PropertyParser {
 
   public static String parse(String string, Properties variables) {
     VariableTokenHandler handler = new VariableTokenHandler(variables);
+    // 将默认值的处理, 委托给GenericTokenParser处理
     GenericTokenParser parser = new GenericTokenParser("${", "}", handler);
     return parser.parse(string);
   }
 
+  /**
+   * VariableTokenHandler是PropertyParser中的一个私有静态方法
+   */
   private static class VariableTokenHandler implements TokenHandler {
+    // <properties>节点下定义的键值对, 用于替换占位符
     private final Properties variables;
+    // 是否支持占位符中使用默认值的功能
     private final boolean enableDefaultValue;
+    // 指定占位符和默认值之间的分隔符
     private final String defaultValueSeparator;
 
     private VariableTokenHandler(Properties variables) {

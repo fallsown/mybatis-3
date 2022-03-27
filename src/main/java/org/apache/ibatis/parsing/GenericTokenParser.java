@@ -16,6 +16,10 @@
 package org.apache.ibatis.parsing;
 
 /**
+ * 通用的占位符解析器
+ * <pre>
+ *     顺序查找openToken和closeToken解析得到的占位符的字面值, 并交给TokenHandler处理, 然后将解析结果重新拼装成字符串
+ * </pre>
  * @author Clinton Begin
  */
 public class GenericTokenParser {
@@ -75,10 +79,13 @@ public class GenericTokenParser {
           builder.append(src, start, src.length - start);
           offset = src.length;
         } else {
+          // 将占位符的字面值交给TokenHandler处理, 并将处理结果追加到builder中保存
+          // 最后拼凑出解析后的完整内容
           builder.append(handler.handleToken(expression.toString()));
           offset = end + closeToken.length();
         }
       }
+      // 移动start
       start = text.indexOf(openToken, offset);
     }
     if (offset < src.length) {
