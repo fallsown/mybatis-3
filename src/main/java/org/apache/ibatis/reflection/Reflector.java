@@ -39,6 +39,8 @@ import org.apache.ibatis.reflection.invoker.SetFieldInvoker;
 import org.apache.ibatis.reflection.property.PropertyNamer;
 
 /**
+ * mybatis封装的反射类类对象, 一个Reflector对象对应一个类
+ *
  * This class represents a cached set of class definition information that
  * allows for easy mapping between property names and getter/setter methods.
  *
@@ -46,25 +48,49 @@ import org.apache.ibatis.reflection.property.PropertyNamer;
  */
 public class Reflector {
 
+  // 对应的Class类型
   private final Class<?> type;
+
+  // 可读属性的名称集合, 可读属性就是存在对应的getter方法的属性, 初始值为空数组
   private final String[] readablePropertyNames;
+
+  // 可写属性的名称集合, 可写属性就是存在对应setter方法的属性, 初始值为空数组
   private final String[] writeablePropertyNames;
+
+  // 记录了属性相应的setter方法, key是属性名称, value是Invoke对象, 它是对setter方法对应
+  // Method对象的封装, 后面会详细介绍
   private final Map<String, Invoker> setMethods = new HashMap<String, Invoker>();
+
+  // 属性相应的getter方法集合, key是属性名称, value也是Invoker对象
   private final Map<String, Invoker> getMethods = new HashMap<String, Invoker>();
+
+  // 记录了属性相应的setter方法的参数值类型, key是属性名称, value是setter方法的参数类型
   private final Map<String, Class<?>> setTypes = new HashMap<String, Class<?>>();
+
+  // 记录了属性相应的getter方法的返回值类型, key是属性名称, value是getter方法的返回值类型
   private final Map<String, Class<?>> getTypes = new HashMap<String, Class<?>>();
+
+  // 记录了默认构造方法
   private Constructor<?> defaultConstructor;
 
+  // 记录了所有属性名称的集合
   private Map<String, String> caseInsensitivePropertyMap = new HashMap<String, String>();
 
+  /**
+   * 主要方法 - 填充上面几个fields
+   */
   public Reflector(Class<?> clazz) {
     type = clazz;
-    addDefaultConstructor(clazz);
-    addGetMethods(clazz);
-    addSetMethods(clazz);
-    addFields(clazz);
+    addDefaultConstructor(clazz); // 查找clazz的默认构造方法
+    addGetMethods(clazz); // 处理clazz中的getter方法, 填充getMethods和getTypes集合
+    addSetMethods(clazz); // 处理clazz中的setter方法
+    addFields(clazz); // 处理没有getter/setter方法的字段
+
+    // 初始化可读/写属性的名称集合
     readablePropertyNames = getMethods.keySet().toArray(new String[getMethods.keySet().size()]);
     writeablePropertyNames = setMethods.keySet().toArray(new String[setMethods.keySet().size()]);
+
+    // 初始化caseInsensitivePropertyMap集合, 其中记录了所有大写格式的属性名称
     for (String propName : readablePropertyNames) {
       caseInsensitivePropertyMap.put(propName.toUpperCase(Locale.ENGLISH), propName);
     }
@@ -83,6 +109,7 @@ public class Reflector {
           } catch (Exception e) {
             // Ignored. This is only a final precaution, nothing we can do.
           }
+
         }
         if (constructor.isAccessible()) {
           this.defaultConstructor = constructor;
@@ -105,10 +132,18 @@ public class Reflector {
         addMethodConflict(conflictingGetters, name, method);
       }
     }
+
+    /*
+     * 由于子类如果重写了方法, 返回值不同的话, 那么会返回两个签名, 用于解决这个问题
+     */
     resolveGetterConflicts(conflictingGetters);
   }
 
+  /**
+   * 用于处理重写子类返回不同而签名不同的问题
+   */
   private void resolveGetterConflicts(Map<String, List<Method>> conflictingGetters) {
+    // 遍历conflictingGetters集合
     for (Entry<String, List<Method>> entry : conflictingGetters.entrySet()) {
       Method winner = null;
       String propName = entry.getKey();
@@ -133,12 +168,15 @@ public class Reflector {
         } else if (winnerType.isAssignableFrom(candidateType)) {
           winner = candidate;
         } else {
+          // 返回值相同 异常
           throw new ReflectionException(
               "Illegal overloaded getter method with ambiguous type for property "
                   + propName + " in class " + winner.getDeclaringClass()
                   + ". This breaks the JavaBeans specification and can cause unpredictable results.");
         }
       }
+
+      // 添加到get list中
       addGetMethod(propName, winner);
     }
   }
@@ -301,7 +339,9 @@ public class Reflector {
     return !(name.startsWith("$") || "serialVersionUID".equals(name) || "class".equals(name));
   }
 
-  /*
+  /**
+   * 获取当前类以及父类中定义的所有方法的唯一前面, 以及相应的Method对象
+   *
    * This method returns an array containing all methods
    * declared in this class and any superclass.
    * We use this method, instead of the simpler Class.getMethods(),
@@ -311,33 +351,46 @@ public class Reflector {
    * @return An array containing all methods in this class
    */
   private Method[] getClassMethods(Class<?> cls) {
+    // 用于记录指定类中定义的全部方法的唯一签名以及对应的Method对象
     Map<String, Method> uniqueMethods = new HashMap<String, Method>();
     Class<?> currentClass = cls;
     while (currentClass != null && currentClass != Object.class) {
+      // 记录currentClass这个类中定义的全部方法
       addUniqueMethods(uniqueMethods, currentClass.getDeclaredMethods());
 
       // we also need to look for interface methods -
       // because the class may be abstract
+      // 记录接口中定义的方法
       Class<?>[] interfaces = currentClass.getInterfaces();
       for (Class<?> anInterface : interfaces) {
         addUniqueMethods(uniqueMethods, anInterface.getMethods());
       }
 
-      currentClass = currentClass.getSuperclass();
+      currentClass = currentClass.getSuperclass(); // 获取父类, 继续while循环
     }
 
     Collection<Method> methods = uniqueMethods.values();
 
-    return methods.toArray(new Method[methods.size()]);
+    return methods.toArray(new Method[methods.size()]); // 转换成Methods数组返回
   }
 
+  /**
+   * 为每个方法生成唯一的签名, 并记录在uniqueMethods集合中
+   */
   private void addUniqueMethods(Map<String, Method> uniqueMethods, Method[] methods) {
     for (Method currentMethod : methods) {
       if (!currentMethod.isBridge()) {
+        /*
+         * 通过这个方法获取到的方法签名是: 返回值类型#方法名称: 参数类型列表
+         * 比如: Reflector.getSignature(Method)方法的唯一前面是: java.lang.String#getSignature:java.lang.reflect.Method
+         * 通过Reflector.getSignature()方法得到的方法前面是全局唯一的, 可以作为该方法的唯一标识
+         */
         String signature = getSignature(currentMethod);
+
         // check to see if the method is already known
         // if it is known, then an extended class must have
         // overridden a method
+        // 检查子类中是否已经覆盖了该方法, 如果覆盖则无需再添加
         if (!uniqueMethods.containsKey(signature)) {
           if (canAccessPrivateMethods()) {
             try {
@@ -347,6 +400,7 @@ public class Reflector {
             }
           }
 
+          // 记录该签名和方法的对应关系
           uniqueMethods.put(signature, currentMethod);
         }
       }
