@@ -119,8 +119,12 @@ public class Reflector {
   }
 
   private void addGetMethods(Class<?> cls) {
+    // key为属性名, value是相应的getter方法集合, 因为子类可能覆盖父类的getter方法, 因此同一属性名可能存在多个getter方法
     Map<String, List<Method>> conflictingGetters = new HashMap<String, List<Method>>();
+    // 获取指定类以及父类和接口中定义的方法
     Method[] methods = getClassMethods(cls);
+
+    // 按照Javabean规范查找getter方法, 并记录到conflictiongGetters集合中
     for (Method method : methods) {
       if (method.getParameterTypes().length > 0) {
         continue;
@@ -135,6 +139,7 @@ public class Reflector {
 
     /*
      * 由于子类如果重写了方法, 返回值不同的话, 那么会返回两个签名, 用于解决这个问题
+     * 对conflictingGetters集合进行处理
      */
     resolveGetterConflicts(conflictingGetters);
   }
