@@ -26,6 +26,8 @@ import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 
 /**
+ * 他是一个工具类, 提供了一系列方法来解析指定类中的字段, 方法返回值或方法参数的类型
+ *
  * @author Iwao AVE!
  */
 public class TypeParameterResolver {
@@ -35,8 +37,11 @@ public class TypeParameterResolver {
    *         they will be resolved to the actual runtime {@link Type}s.
    */
   public static Type resolveFieldType(Field field, Type srcType) {
+    // 获取字段的声明类型
     Type fieldType = field.getGenericType();
+    // 获取字段定义所在类的Class对象
     Class<?> declaringClass = field.getDeclaringClass();
+    // 调用resolveType方法进行后续处理
     return resolveType(fieldType, srcType, declaringClass);
   }
 
@@ -64,6 +69,14 @@ public class TypeParameterResolver {
     return result;
   }
 
+  /**
+   * 选择合适的方法进行解析
+   *
+   * @param type 字段, 方法返回值或方法参数的类型
+   * @param srcType 查找改字段, 返回值或方法参数的起始位置
+   * @param declaringClass 该字段, 方法定义所在的类
+   * @return
+   */
   private static Type resolveType(Type type, Type srcType, Class<?> declaringClass) {
     if (type instanceof TypeVariable) {
       return resolveTypeVar((TypeVariable<?>) type, srcType, declaringClass);
@@ -72,6 +85,7 @@ public class TypeParameterResolver {
     } else if (type instanceof GenericArrayType) {
       return resolveGenericArrayType((GenericArrayType) type, srcType, declaringClass);
     } else {
+      // Class类型
       return type;
     }
   }
